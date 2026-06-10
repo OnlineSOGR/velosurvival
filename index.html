@@ -19,7 +19,7 @@
             background: radial-gradient(circle at center, #34495e 0%, #1a252f 100%);
             font-family: 'Poppins', sans-serif;
             overflow: hidden;
-            touch-action: none; 
+            /* touch-action: none; wurde hier absichtlich entfernt, damit das iframe beim Start scrollbar bleibt */
         }
 
         #game-wrapper {
@@ -278,13 +278,18 @@
         player.x = Math.max(0, Math.min(canvas.width - player.width, inputX - player.width / 2));
     }
 
+    // Die Touch-Events wurden so angepasst, dass der Bildschirm nur gesperrt wird, wenn das Spiel aktiv läuft.
     canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
+        if (isPlaying) {
+            e.preventDefault(); // Verhindert Scrollen WÄHREND des Spielens
+        }
         handleMove(e.touches[0].clientX);
     }, { passive: false });
     
     canvas.addEventListener('touchstart', (e) => {
-        if(isPlaying) e.preventDefault();
+        if (isPlaying) {
+            e.preventDefault(); // Verhindert Scrollen WÄHREND des Spielens
+        }
         handleMove(e.touches[0].clientX);
     }, { passive: false });
 

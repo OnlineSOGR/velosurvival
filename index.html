@@ -19,7 +19,6 @@
             background: radial-gradient(circle at center, #34495e 0%, #1a252f 100%);
             font-family: 'Poppins', sans-serif;
             overflow: hidden;
-            /* touch-action: none; wurde hier absichtlich entfernt, damit das iframe beim Start scrollbar bleibt */
         }
 
         #game-wrapper {
@@ -81,6 +80,31 @@
             padding: 8px 16px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        /* Eleganter, zentrierter Pausenbutton */
+        #pause-btn {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: white;
+            padding: 8px 16px;
+            font-size: 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            pointer-events: auto; /* Klickbar machen im UI-Layer */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-family: 'Poppins', sans-serif;
+        }
+
+        #pause-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateX(-50%) scale(1.05);
         }
 
         /* Edles, weichgezeichnetes Overlay */
@@ -151,7 +175,7 @@
         }
 
         /* Moderne Buttons mit Verläufen und Animationen */
-        button {
+        .menu-btn {
             padding: 14px 36px;
             font-size: 18px;
             font-family: 'Poppins', sans-serif;
@@ -185,7 +209,7 @@
             box-shadow: 0 6px 25px rgba(59, 130, 246, 0.5);
         }
 
-        button:active {
+        .menu-btn:active {
             transform: translateY(1px) scale(0.98);
         }
     </style>
@@ -197,6 +221,7 @@
     
     <div id="ui-layer">
         <div id="score-display">🎯 0</div>
+        <button id="pause-btn" class="hidden">⏸️</button>
         <div id="speed-display">⚡ 50 km/h</div>
         
         <div id="overlay">
@@ -205,8 +230,8 @@
             <p id="final-score" class="hidden">Erfolgreich überholt: <span>0</span></p>
             <div id="highscore-display"></div>
             <div>
-                <button id="start-btn">Spiel Starten</button>
-                <button id="retry-btn" class="hidden">Nochmal!</button>
+                <button id="start-btn" class="menu-btn">Spiel Starten</button>
+                <button id="retry-btn" class="menu-btn hidden">Nochmal!</button>
             </div>
         </div>
     </div>
@@ -217,6 +242,7 @@
     const ctx = canvas.getContext('2d');
     const scoreDisplay = document.getElementById('score-display');
     const speedDisplay = document.getElementById('speed-display');
+    const pauseBtn = document.getElementById('pause-btn');
     const overlay = document.getElementById('overlay');
     const startBtn = document.getElementById('start-btn');
     const retryBtn = document.getElementById('retry-btn');
@@ -239,6 +265,7 @@
     const BIKE_CENTER_X = RIGHT_EDGE_X - 40; 
 
     let isPlaying = false;
+    let isPaused = false;
     let score = 0;
     let highscore = parseInt(localStorage.getItem('velo_highscore')) || 0;
     let animationId;
@@ -270,7 +297,7 @@
 
     // --- Steuerung ---
     function handleMove(clientX) {
-        if (!isPlaying) return;
+        if (!isPlaying || isPaused) return;
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         let inputX = (clientX - rect.left) * scaleX;
@@ -278,23 +305,51 @@
         player.x = Math.max(0, Math.min(canvas.width - player.width, inputX - player.width / 2));
     }
 
-    // Die Touch-Events wurden so angepasst, dass der Bildschirm nur gesperrt wird, wenn das Spiel aktiv läuft.
+    // Scrollen wird nur blockiert, wenn das Spiel läuft UND nicht pausiert ist
     canvas.addEventListener('touchmove', (e) => {
-        if (isPlaying) {
-            e.preventDefault(); // Verhindert Scrollen WÄHREND des Spielens
+        if (isPlaying && !isPaused) {
+            e.preventDefault(); 
         }
         handleMove(e.touches[0].clientX);
     }, { passive: false });
     
     canvas.addEventListener('touchstart', (e) => {
-        if (isPlaying) {
-            e.preventDefault(); // Verhindert Scrollen WÄHREND des Spielens
+        if (isPlaying && !isPaused) {
+            e.preventDefault(); 
         }
         handleMove(e.touches[0].clientX);
     }, { passive: false });
 
     canvas.addEventListener('mousemove', (e) => {
         handleMove(e.clientX);
+    });
+
+    // --- Pause-Funktion ---
+    function togglePause() {
+        if (!isPlaying) return;
+        
+        isPaused = !isPaused;
+        
+        if (isPaused) {
+            pauseBtn.innerHTML = "▶️";
+            // Zeichne Pausen-Schleier direkt auf den Canvas
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 36px Poppins';
+            ctx.textAlign = 'center';
+            ctx.fillText("PAUSE", canvas.width / 2, canvas.height / 2);
+        } else {
+            pauseBtn.innerHTML = "⏸️";
+            // Setze den Loop fort
+            gameLoop();
+        }
+    }
+
+    pauseBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Verhindert ungewollte Interaktionen
+        togglePause();
     });
 
     function spawnBike(isEbike) {
@@ -329,11 +384,14 @@
         pendingOvertakes = 0;
         player.x = 220; 
         lastPlayerX = 220;
+        isPaused = false;
+        pauseBtn.innerHTML = "⏸️";
         updateScoreDisplay();
         overlay.classList.add('hidden');
         document.getElementById('final-score').classList.add('hidden');
         startBtn.classList.add('hidden');
         retryBtn.classList.add('hidden');
+        pauseBtn.classList.remove('hidden'); // Pause zeigen
         isPlaying = true;
         gameLoop();
     }
@@ -343,6 +401,7 @@
         cancelAnimationFrame(animationId);
         gameOverTitle.innerText = "Game Over!";
         gameOverReason.innerHTML = reason;
+        pauseBtn.classList.add('hidden'); // Pause verstecken
         
         if (score > highscore) {
             highscore = score;
@@ -654,7 +713,7 @@
 
         drawRealisticCar(player.x, player.y, player.width, player.height, player.color);
 
-        // Warnung: Gegenfahrbahn (Schriftart angepasst)
+        // Warnung: Gegenfahrbahn
         if (wrongLaneTimer > 0) {
             ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
             ctx.font = 'bold 18px Poppins';
@@ -669,7 +728,7 @@
             ctx.textAlign = 'left';
         }
 
-        // Warnung: Rechter Rand (Schriftart angepasst)
+        // Warnung: Rechter Rand
         if (rightLaneTimer > 0) {
             ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
             ctx.font = 'bold 18px Poppins';
@@ -686,9 +745,9 @@
     }
 
     function gameLoop() {
-        if (!isPlaying) return;
+        if (!isPlaying || isPaused) return; // Schleife stoppen bei Pause
         update();
-        if (isPlaying) { 
+        if (isPlaying && !isPaused) { 
             draw();
             animationId = requestAnimationFrame(gameLoop);
         }

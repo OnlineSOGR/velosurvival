@@ -411,7 +411,10 @@
         }
     }
 
-    function resetGame() {
+function resetGame() {
+        // NEU: Beendet den Intro-Loop (oder alte Loops), damit das Spiel nicht doppelt so schnell läuft
+        cancelAnimationFrame(animationId); 
+
         score = 0;
         obstacles = [];
         spawnTimer = 0;
@@ -431,7 +434,8 @@
         retryBtn.classList.add('hidden');
         pauseBtn.classList.remove('hidden'); 
         isPlaying = true;
-        gameLoop();
+        
+        gameLoop(); // Startet den einzelnen, sauberen Loop für das Gameplay
     }
 
     function gameOver(reason) {

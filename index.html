@@ -48,7 +48,6 @@
             box-sizing: border-box;
         }
 
-        /* Glassmorphism für das HUD */
         #score-display {
             position: absolute;
             top: 20px;
@@ -82,11 +81,10 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
 
-        /* Eleganter, zentrierter Pausenbutton */
         #pause-btn {
             position: absolute;
             top: 20px;
-            left: 56%;
+            left: 50%;
             transform: translateX(-50%);
             background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(8px);
@@ -97,7 +95,7 @@
             font-size: 16px;
             border-radius: 12px;
             cursor: pointer;
-            pointer-events: auto; /* Klickbar machen im UI-Layer */
+            pointer-events: auto;
             box-shadow: 0 4px 12px rgba(0,0,0,0.2);
             font-family: 'Poppins', sans-serif;
         }
@@ -107,16 +105,16 @@
             transform: translateX(-50%) scale(1.05);
         }
 
-        /* Edles, weichgezeichnetes Overlay */
+        /* Hintergrund-Transparenz und Blur angepasst für den Blick auf die Vorschau */
         #overlay {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(15, 23, 42, 0.9);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -160,7 +158,6 @@
             font-size: 28px;
         }
 
-        /* Goldener Highscore-Badge */
         #highscore-display {
             background: rgba(245, 158, 11, 0.15);
             border: 1px solid rgba(245, 158, 11, 0.4);
@@ -174,7 +171,6 @@
             display: inline-block;
         }
 
-        /* Moderne Buttons mit Verläufen und Animationen */
         .menu-btn {
             padding: 14px 36px;
             font-size: 18px;
@@ -265,6 +261,7 @@
     const BIKE_CENTER_X = RIGHT_EDGE_X - 40; 
 
     let isPlaying = false;
+    let isIntro = true; // Neu: Intro-Modus für Foreshadowing aktivieren
     let isPaused = false;
     let score = 0;
     let highscore = parseInt(localStorage.getItem('velo_highscore')) || 0;
@@ -297,7 +294,7 @@
 
     // --- Steuerung ---
     function handleMove(clientX) {
-        if (!isPlaying || isPaused) return;
+        if (!isPlaying || isPaused) return; // Blockiert im Intro-Modus Steuerung
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         let inputX = (clientX - rect.left) * scaleX;
@@ -305,7 +302,6 @@
         player.x = Math.max(0, Math.min(canvas.width - player.width, inputX - player.width / 2));
     }
 
-    // Scrollen wird nur blockiert, wenn das Spiel läuft UND nicht pausiert ist
     canvas.addEventListener('touchmove', (e) => {
         if (isPlaying && !isPaused) {
             e.preventDefault(); 
@@ -324,7 +320,6 @@
         handleMove(e.clientX);
     });
 
-    // --- Pause-Funktion ---
     function togglePause() {
         if (!isPlaying) return;
         
@@ -332,7 +327,6 @@
         
         if (isPaused) {
             pauseBtn.innerHTML = "▶️";
-            // Zeichne Pausen-Schleier direkt auf den Canvas
             ctx.fillStyle = 'rgba(15, 23, 42, 0.5)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
@@ -342,13 +336,12 @@
             ctx.fillText("PAUSE", canvas.width / 2, canvas.height / 2);
         } else {
             pauseBtn.innerHTML = "⏸️";
-            // Setze den Loop fort
             gameLoop();
         }
     }
 
     pauseBtn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Verhindert ungewollte Interaktionen
+        e.stopPropagation(); 
         togglePause();
     });
 
@@ -385,23 +378,25 @@
         player.x = 220; 
         lastPlayerX = 220;
         isPaused = false;
+        isIntro = false; // Intro-Modus beenden
         pauseBtn.innerHTML = "⏸️";
         updateScoreDisplay();
         overlay.classList.add('hidden');
         document.getElementById('final-score').classList.add('hidden');
         startBtn.classList.add('hidden');
         retryBtn.classList.add('hidden');
-        pauseBtn.classList.remove('hidden'); // Pause zeigen
+        pauseBtn.classList.remove('hidden'); 
         isPlaying = true;
         gameLoop();
     }
 
     function gameOver(reason) {
+        if (isIntro) return; // Kein Game Over während der Vorschau
         isPlaying = false;
         cancelAnimationFrame(animationId);
         gameOverTitle.innerText = "Game Over!";
         gameOverReason.innerHTML = reason;
-        pauseBtn.classList.add('hidden'); // Pause verstecken
+        pauseBtn.classList.add('hidden'); 
         
         if (score > highscore) {
             highscore = score;
@@ -533,7 +528,6 @@
         ctx.fillStyle = '#5a6268';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Mittellinie
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.lineWidth = 5;
         ctx.setLineDash([35, 45]);
@@ -542,7 +536,6 @@
         ctx.lineTo(MIDDLE_LINE_X, canvas.height);
         ctx.stroke();
         
-        // Fahrbahnrand rechts
         ctx.setLineDash([]);
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -552,6 +545,19 @@
     }
 
     function update() {
+        // --- Autopilot-Logik für Foreshadowing im Intro ---
+        if (isIntro) {
+            let targetX = 220; // Rechte Standardspur
+            obstacles.forEach(obs => {
+                // Sobald ein Velo von oben ins Sichtfeld kommt, weicht die KI aus
+                if (obs.y > -150 && obs.y < player.y + 80) {
+                    targetX = 80; // Sicherer Abstand auf der linken Spur
+                }
+            });
+            // Weiches rübergleiten des Autos
+            player.x += (targetX - player.x) * 0.08;
+        }
+
         let isSteeringLeft = player.x < lastPlayerX - 0.5; 
         lastPlayerX = player.x; 
 
@@ -598,8 +604,11 @@
         if (player.x < MIDDLE_LINE_X) {
             wrongLaneTimer++;
             if (wrongLaneTimer > 600) { 
-                gameOver("<b>Gegenfahrbahn!</b><br><br>Du bist länger als 10 Sekunden durchgehend auf der Gegenfahrbahn gefahren.");
-                return;
+                if (isIntro) wrongLaneTimer = 0; // KI ignoriert Timer-Gameover
+                else {
+                    gameOver("<b>Gegenfahrbahn!</b><br><br>Du bist länger als 10 Sekunden durchgehend auf der Gegenfahrbahn gefahren.");
+                    return;
+                }
             }
         } else {
             wrongLaneTimer = 0; 
@@ -609,8 +618,11 @@
         if (player.x + player.width > RIGHT_EDGE_X) {
             rightLaneTimer++;
             if (rightLaneTimer > 600) { 
-                gameOver("<b>Abseits der Fahrbahn!</b><br><br>Du bist länger als 10 Sekunden über die rechte Begrenzungslinie gefahren.");
-                return;
+                if (isIntro) rightLaneTimer = 0;
+                else {
+                    gameOver("<b>Abseits der Fahrbahn!</b><br><br>Du bist länger als 10 Sekunden über die rechte Begrenzungslinie gefahren.");
+                    return;
+                }
             }
         } else {
             rightLaneTimer = 0; 
@@ -671,6 +683,7 @@
                 let overlapX = player.x < obs.x + obs.width && player.x + player.width > obs.x;
                 
                 if (overlapX) {
+                    if (isIntro) { obstacles.splice(i, 1); continue; } // KI-Kollisionsschutz
                     gameOver("<b>Auffahrunfall!</b><br><br>Du hast ein Zweirad gerammt.");
                     return;
                 }
@@ -688,6 +701,7 @@
                 }
 
                 if (gap < OVERTAKE_GAP) {
+                    if (isIntro) continue; // Fehler im Intro unterdrücken
                     let gapInCm = Math.round((gap / PPM) * 100);
                     let missingCm = 150 - gapInCm;
                     gameOver("<b>Zu nah überholt!</b><br><br>Du hast das Zweirad mit nur <b>" + gapInCm + " cm</b> Abstand überholt.<br>Vorgeschrieben sind 150 cm (dir fehlten <b>" + missingCm + " cm</b>!).");
@@ -697,9 +711,11 @@
         }
 
         if (player.x >= MIDDLE_LINE_X && pendingOvertakes > 0) {
-            score += pendingOvertakes; 
+            if (!isIntro) { // Score im Intro nicht hochzählen
+                score += pendingOvertakes; 
+                updateScoreDisplay();
+            }
             pendingOvertakes = 0;      
-            updateScoreDisplay();
         }
     }
 
@@ -713,41 +729,43 @@
 
         drawRealisticCar(player.x, player.y, player.width, player.height, player.color);
 
-        // Warnung: Gegenfahrbahn
-        if (wrongLaneTimer > 0) {
-            ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
-            ctx.font = 'bold 18px Poppins';
-            ctx.textAlign = 'center';
-            let secondsLeft = Math.ceil((600 - wrongLaneTimer) / 60);
-            if (Math.floor(wrongLaneTimer / 15) % 2 === 0) {
-                ctx.fillText("⚠️ GEGENFAHRBAHN! Zurück in " + secondsLeft + "s", canvas.width / 2, 95);
-            } else {
-                ctx.fillStyle = '#fff';
-                ctx.fillText("⚠️ GEGENFAHRBAHN! Zurück in " + secondsLeft + "s", canvas.width / 2, 95);
+        // Warnungen nur anzeigen, wenn echtes Gameplay aktiv ist
+        if (!isIntro) {
+            if (wrongLaneTimer > 0) {
+                ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
+                ctx.font = 'bold 18px Poppins';
+                ctx.textAlign = 'center';
+                let secondsLeft = Math.ceil((600 - wrongLaneTimer) / 60);
+                if (Math.floor(wrongLaneTimer / 15) % 2 === 0) {
+                    ctx.fillText("⚠️ GEGENFAHRBAHN! Zurück in " + secondsLeft + "s", canvas.width / 2, 95);
+                } else {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText("⚠️ GEGENFAHRBAHN! Zurück in " + secondsLeft + "s", canvas.width / 2, 95);
+                }
+                ctx.textAlign = 'left';
             }
-            ctx.textAlign = 'left';
-        }
 
-        // Warnung: Rechter Rand
-        if (rightLaneTimer > 0) {
-            ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
-            ctx.font = 'bold 18px Poppins';
-            ctx.textAlign = 'center';
-            let secondsLeft = Math.ceil((600 - rightLaneTimer) / 60);
-            if (Math.floor(rightLaneTimer / 15) % 2 === 0) {
-                ctx.fillText("⚠️ RECHTE LINIE! Zurück in " + secondsLeft + "s", canvas.width / 2, 130);
-            } else {
-                ctx.fillStyle = '#fff';
-                ctx.fillText("⚠️ RECHTE LINIE! Zurück in " + secondsLeft + "s", canvas.width / 2, 130);
+            if (rightLaneTimer > 0) {
+                ctx.fillStyle = 'rgba(231, 76, 60, 0.9)';
+                ctx.font = 'bold 18px Poppins';
+                ctx.textAlign = 'center';
+                let secondsLeft = Math.ceil((600 - rightLaneTimer) / 60);
+                if (Math.floor(rightLaneTimer / 15) % 2 === 0) {
+                    ctx.fillText("⚠️ RECHTE LINIE! Zurück in " + secondsLeft + "s", canvas.width / 2, 130);
+                } else {
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText("⚠️ RECHTE LINIE! Zurück in " + secondsLeft + "s", canvas.width / 2, 130);
+                }
+                ctx.textAlign = 'left';
             }
-            ctx.textAlign = 'left';
         }
     }
 
     function gameLoop() {
-        if (!isPlaying || isPaused) return; // Schleife stoppen bei Pause
+        if (!isPlaying && !isIntro) return; // Erlaubt den Loop im Intro-Modus
+        if (isPaused) return; 
         update();
-        if (isPlaying && !isPaused) { 
+        if ((isPlaying || isIntro) && !isPaused) { 
             draw();
             animationId = requestAnimationFrame(gameLoop);
         }
@@ -758,8 +776,8 @@
     
     updateHighscoreDOM();
     
-    drawRoad();
-    drawRealisticCar(player.x, player.y, player.width, player.height, player.color);
+    // Spiel startet direkt mit dem "Attract-Foreshadowing-Mode"
+    gameLoop();
 
 </script>
 </body>
